@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 
 void main() {
   runApp(const FarmLinkApp());
@@ -1349,6 +1351,17 @@ class DashboardScaffold extends StatelessWidget {
         backgroundColor: AppColors.surface,
         indicatorColor: AppColors.lightGreen,
         selectedIndex: 0,
+
+        onDestinationSelected: (index) {
+  if (index == 1) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const SmartMapPage(),
+      ),
+    );
+  }
+},
         destinations: const [
           NavigationDestination(
             icon: Icon(
@@ -1563,5 +1576,344 @@ class StatCard extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+class SmartMapPage extends StatelessWidget {
+  const SmartMapPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+
+      appBar: AppBar(
+        backgroundColor: AppColors.surface,
+        elevation: 0,
+        title: const Row(
+          children: [
+            Icon(
+              Icons.map_rounded,
+              color: AppColors.blue,
+            ),
+            SizedBox(width: 10),
+            Text(
+              'Smart Map',
+              style: TextStyle(
+                color: AppColors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
+
+      body: Stack(
+        children: [
+
+          // MAP AREA
+         FlutterMap(
+  options: const MapOptions(
+    initialCenter: LatLng(10.7905, 78.7047),
+    initialZoom: 13,
+  ),
+  children: [
+    TileLayer(
+      urlTemplate:
+          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+      userAgentPackageName: 'com.farmlink.app',
+      maxZoom: 19,
+    ),
+  ],
+),
+
+          // SEARCH BAR
+          Positioned(
+            top: 18,
+            left: 18,
+            right: 18,
+            child: Container(
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(18),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.30),
+                    blurRadius: 15,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: const TextField(
+                style: TextStyle(
+                  color: AppColors.white,
+                ),
+                decoration: InputDecoration(
+                  hintText:
+                      'Search farmers, dealers or crops...',
+                  hintStyle: TextStyle(
+                    color: AppColors.grey,
+                  ),
+                  prefixIcon: Icon(
+                    Icons.search_rounded,
+                    color: AppColors.blue,
+                  ),
+                  border: InputBorder.none,
+                  contentPadding:
+                      EdgeInsets.symmetric(vertical: 17),
+                ),
+              ),
+            ),
+          ),
+
+          // FILTER BUTTONS
+          Positioned(
+            top: 85,
+            left: 18,
+            right: 18,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _filterChip(
+                    '🌾 Farmers',
+                    AppColors.green,
+                  ),
+                  const SizedBox(width: 10),
+                  _filterChip(
+                    '🏪 Dealers',
+                    AppColors.orange,
+                  ),
+                  const SizedBox(width: 10),
+                  _filterChip(
+                    '📍 Nearby',
+                    AppColors.blue,
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // FARMER MARKERS
+          const Positioned(
+            top: 230,
+            left: 80,
+            child: MapMarker(
+              icon: Icons.agriculture_rounded,
+              color: AppColors.green,
+              label: 'Farmer',
+            ),
+          ),
+
+          const Positioned(
+            top: 340,
+            right: 80,
+            child: MapMarker(
+              icon: Icons.storefront_rounded,
+              color: AppColors.orange,
+              label: 'Dealer',
+            ),
+          ),
+
+          const Positioned(
+            top: 470,
+            left: 150,
+            child: MapMarker(
+              icon: Icons.agriculture_rounded,
+              color: AppColors.green,
+              label: 'Farmer',
+            ),
+          ),
+
+          // CURRENT LOCATION
+          Positioned(
+            right: 20,
+            bottom: 170,
+            child: FloatingActionButton(
+              heroTag: 'locationButton',
+              backgroundColor: AppColors.surface,
+              onPressed: () {},
+              child: const Icon(
+                Icons.my_location_rounded,
+                color: AppColors.blue,
+              ),
+            ),
+          ),
+
+          // BOTTOM INFO CARD
+          Positioned(
+            left: 18,
+            right: 18,
+            bottom: 20,
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.07),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.35),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: const Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.eco_rounded,
+                        color: AppColors.green,
+                      ),
+                      SizedBox(width: 10),
+                      Text(
+                        'FarmLink Nearby',
+                        style: TextStyle(
+                          color: AppColors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Discover farmers and dealers around your location.',
+                    style: TextStyle(
+                      color: AppColors.grey,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static Widget _filterChip(
+    String title,
+    Color color,
+  ) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 16,
+        vertical: 10,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(
+          color: color.withOpacity(0.5),
+        ),
+      ),
+      child: Text(
+        title,
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+}
+class MapMarker extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String label;
+
+  const MapMarker({
+    super.key,
+    required this.icon,
+    required this.color,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: color.withOpacity(0.4),
+                blurRadius: 15,
+                spreadRadius: 3,
+              ),
+            ],
+          ),
+          child: Icon(
+            icon,
+            color: Colors.white,
+            size: 23,
+          ),
+        ),
+        const SizedBox(height: 5),
+        Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 8,
+            vertical: 4,
+          ),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: AppColors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+class MapGridPainter extends CustomPainter {
+  @override
+  void paint(
+    Canvas canvas,
+    Size size,
+  ) {
+    final paint = Paint()
+      ..color = Colors.white.withOpacity(0.04)
+      ..strokeWidth = 1;
+
+    const gridSize = 55.0;
+
+    for (double x = 0; x < size.width; x += gridSize) {
+      canvas.drawLine(
+        Offset(x, 0),
+        Offset(x, size.height),
+        paint,
+      );
+    }
+
+    for (double y = 0; y < size.height; y += gridSize) {
+      canvas.drawLine(
+        Offset(0, y),
+        Offset(size.width, y),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(
+    covariant CustomPainter oldDelegate,
+  ) {
+    return false;
   }
 }
