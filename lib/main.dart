@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:geolocator/geolocator.dart';
+import 'dart:async';
+import 'services/api_service.dart';
 
 void main() {
   runApp(const FarmLinkApp());
@@ -317,7 +320,6 @@ class FeatureCard extends StatelessWidget {
     );
   }
 }
-
 // ============================================================
 // LOGIN PAGE
 // ============================================================
@@ -331,24 +333,115 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   bool obscurePassword = true;
+  bool isLoading = false;
+
   String selectedRole = 'Farmer';
 
-  void login() {
-    if (selectedRole == 'Farmer') {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const FarmerDashboard(),
+  final TextEditingController emailController =
+      TextEditingController();
+
+  final TextEditingController passwordController =
+      TextEditingController();
+
+  Future<void> login() async {
+    final email = emailController.text.trim();
+    final password = passwordController.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter email and password'),
         ),
       );
-    } else {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const DealerDashboard(),
-        ),
-      );
+      return;
     }
+
+    setState(() {
+      isLoading = true;
+    });
+
+    try {
+      final response = await ApiService.login(
+        email,
+        password,
+      );
+
+      if (!mounted) return;
+
+      final serverRole =
+          response['role']?.toString().toUpperCase();
+
+      final selectedServerRole =
+          selectedRole.toUpperCase();
+
+      // Make sure selected role matches backend role
+      if (serverRole != selectedServerRole) {
+        ApiService.logout();
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'This account is registered as $serverRole',
+            ),
+          ),
+        );
+
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Welcome, ${response['name'] ?? 'User'}!',
+          ),
+        ),
+      );
+
+      if (serverRole == 'FARMER') {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const FarmerDashboard(),
+          ),
+        );
+      } else if (serverRole == 'DEALER') {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const DealerDashboard(),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Unknown user role'),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Login failed: ${e.toString().replaceFirst('Exception: ', '')}',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    emailController.dispose();
+    passwordController.dispose();
+    super.dispose();
   }
 
   @override
@@ -467,14 +560,35 @@ class _LoginPageState extends State<LoginPage> {
 
                   const SizedBox(height: 25),
 
-                  const DarkField(
-                    hint: 'Email or Phone',
-                    icon: Icons.person_outline_rounded,
+                  TextField(
+                    controller: emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    style: const TextStyle(
+                      color: AppColors.white,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Email',
+                      hintStyle: const TextStyle(
+                        color: AppColors.darkGrey,
+                      ),
+                      prefixIcon: const Icon(
+                        Icons.email_outlined,
+                        color: AppColors.grey,
+                      ),
+                      filled: true,
+                      fillColor: AppColors.surface2,
+                      border: OutlineInputBorder(
+                        borderRadius:
+                            BorderRadius.circular(15),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
                   ),
 
                   const SizedBox(height: 18),
 
                   TextField(
+                    controller: passwordController,
                     obscureText: obscurePassword,
                     style: const TextStyle(
                       color: AppColors.white,
@@ -533,10 +647,12 @@ class _LoginPageState extends State<LoginPage> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: login,
+                      onPressed: isLoading ? null : login,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.green,
                         foregroundColor: Colors.white,
+                        disabledBackgroundColor:
+                            AppColors.green.withOpacity(0.5),
                         padding: const EdgeInsets.symmetric(
                           vertical: 18,
                         ),
@@ -545,13 +661,23 @@ class _LoginPageState extends State<LoginPage> {
                               BorderRadius.circular(15),
                         ),
                       ),
-                      child: const Text(
-                        'Login',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                      child: isLoading
+                          ? const SizedBox(
+                              height: 22,
+                              width: 22,
+                              child:
+                                  CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text(
+                              'Login',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                     ),
                   ),
 
@@ -562,7 +688,8 @@ class _LoginPageState extends State<LoginPage> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => const RegisterPage(),
+                          builder: (_) =>
+                              const RegisterPage(),
                         ),
                       );
                     },
@@ -583,7 +710,7 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 }
-
+//
 // ============================================================
 // REGISTER PAGE
 // ============================================================
@@ -597,6 +724,121 @@ class RegisterPage extends StatefulWidget {
 
 class _RegisterPageState extends State<RegisterPage> {
   String selectedRole = 'Farmer';
+
+  bool obscurePassword = true;
+  bool obscureConfirmPassword = true;
+  bool isLoading = false;
+
+  final TextEditingController nameController =
+      TextEditingController();
+
+  final TextEditingController emailController =
+      TextEditingController();
+
+  final TextEditingController passwordController =
+      TextEditingController();
+
+  final TextEditingController confirmPasswordController =
+      TextEditingController();
+
+  Future<void> register() async {
+    final name = nameController.text.trim();
+    final email = emailController.text.trim();
+    final password = passwordController.text;
+    final confirmPassword = confirmPasswordController.text;
+
+    if (name.isEmpty ||
+        email.isEmpty ||
+        password.isEmpty ||
+        confirmPassword.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please fill all fields'),
+        ),
+      );
+      return;
+    }
+
+    if (!email.contains('@')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a valid email'),
+        ),
+      );
+      return;
+    }
+
+    if (password.length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Password must contain at least 6 characters',
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (password != confirmPassword) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Passwords do not match'),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      isLoading = true;
+    });
+
+    try {
+      await ApiService.register(
+        name: name,
+        email: email,
+        password: password,
+        role: selectedRole.toUpperCase(),
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Account created successfully! Please login.',
+          ),
+        ),
+      );
+
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Registration failed: '
+            '${e.toString().replaceFirst('Exception: ', '')}',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    nameController.dispose();
+    emailController.dispose();
+    passwordController.dispose();
+    confirmPasswordController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -701,32 +943,138 @@ class _RegisterPageState extends State<RegisterPage> {
 
                   const SizedBox(height: 22),
 
-                  const DarkField(
-                    hint: 'Full Name',
-                    icon: Icons.person_outline_rounded,
+                  TextField(
+                    controller: nameController,
+                    style: const TextStyle(
+                      color: AppColors.white,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Full Name',
+                      hintStyle: const TextStyle(
+                        color: AppColors.darkGrey,
+                      ),
+                      prefixIcon: const Icon(
+                        Icons.person_outline_rounded,
+                        color: AppColors.grey,
+                      ),
+                      filled: true,
+                      fillColor: AppColors.surface2,
+                      border: OutlineInputBorder(
+                        borderRadius:
+                            BorderRadius.circular(15),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
                   ),
 
                   const SizedBox(height: 15),
 
-                  const DarkField(
-                    hint: 'Email',
-                    icon: Icons.email_outlined,
+                  TextField(
+                    controller: emailController,
+                    keyboardType:
+                        TextInputType.emailAddress,
+                    style: const TextStyle(
+                      color: AppColors.white,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Email',
+                      hintStyle: const TextStyle(
+                        color: AppColors.darkGrey,
+                      ),
+                      prefixIcon: const Icon(
+                        Icons.email_outlined,
+                        color: AppColors.grey,
+                      ),
+                      filled: true,
+                      fillColor: AppColors.surface2,
+                      border: OutlineInputBorder(
+                        borderRadius:
+                            BorderRadius.circular(15),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
                   ),
 
                   const SizedBox(height: 15),
 
-                  const DarkField(
-                    hint: 'Password',
-                    icon: Icons.lock_outline_rounded,
-                    obscure: true,
+                  TextField(
+                    controller: passwordController,
+                    obscureText: obscurePassword,
+                    style: const TextStyle(
+                      color: AppColors.white,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Password',
+                      hintStyle: const TextStyle(
+                        color: AppColors.darkGrey,
+                      ),
+                      prefixIcon: const Icon(
+                        Icons.lock_outline_rounded,
+                        color: AppColors.grey,
+                      ),
+                      suffixIcon: IconButton(
+                        onPressed: () {
+                          setState(() {
+                            obscurePassword =
+                                !obscurePassword;
+                          });
+                        },
+                        icon: Icon(
+                          obscurePassword
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
+                          color: AppColors.grey,
+                        ),
+                      ),
+                      filled: true,
+                      fillColor: AppColors.surface2,
+                      border: OutlineInputBorder(
+                        borderRadius:
+                            BorderRadius.circular(15),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
                   ),
 
                   const SizedBox(height: 15),
 
-                  const DarkField(
-                    hint: 'Confirm Password',
-                    icon: Icons.lock_reset_rounded,
-                    obscure: true,
+                  TextField(
+                    controller: confirmPasswordController,
+                    obscureText: obscureConfirmPassword,
+                    style: const TextStyle(
+                      color: AppColors.white,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Confirm Password',
+                      hintStyle: const TextStyle(
+                        color: AppColors.darkGrey,
+                      ),
+                      prefixIcon: const Icon(
+                        Icons.lock_reset_rounded,
+                        color: AppColors.grey,
+                      ),
+                      suffixIcon: IconButton(
+                        onPressed: () {
+                          setState(() {
+                            obscureConfirmPassword =
+                                !obscureConfirmPassword;
+                          });
+                        },
+                        icon: Icon(
+                          obscureConfirmPassword
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
+                          color: AppColors.grey,
+                        ),
+                      ),
+                      filled: true,
+                      fillColor: AppColors.surface2,
+                      border: OutlineInputBorder(
+                        borderRadius:
+                            BorderRadius.circular(15),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
                   ),
 
                   const SizedBox(height: 25),
@@ -734,10 +1082,12 @@ class _RegisterPageState extends State<RegisterPage> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: () {},
+                      onPressed: isLoading ? null : register,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.green,
                         foregroundColor: Colors.white,
+                        disabledBackgroundColor:
+                            AppColors.green.withOpacity(0.5),
                         padding: const EdgeInsets.symmetric(
                           vertical: 18,
                         ),
@@ -746,13 +1096,23 @@ class _RegisterPageState extends State<RegisterPage> {
                               BorderRadius.circular(15),
                         ),
                       ),
-                      child: const Text(
-                        'Create Account',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                      child: isLoading
+                          ? const SizedBox(
+                              height: 22,
+                              width: 22,
+                              child:
+                                  CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text(
+                              'Create Account',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                     ),
                   ),
 
@@ -776,8 +1136,7 @@ class _RegisterPageState extends State<RegisterPage> {
       ),
     );
   }
-}
-
+}S
 // ============================================================
 // ROLE BUTTON
 // ============================================================
@@ -1578,8 +1937,113 @@ class StatCard extends StatelessWidget {
     );
   }
 }
-class SmartMapPage extends StatelessWidget {
+class SmartMapPage extends StatefulWidget {
   const SmartMapPage({super.key});
+
+  @override
+  State<SmartMapPage> createState() => _SmartMapPageState();
+}
+class _SmartMapPageState extends State<SmartMapPage> {
+  StreamSubscription<Position>? _positionSubscription;
+  Position? _currentPosition;
+  StreamSubscription<Position>? _positionStream;
+  void _startLiveLocation() {
+  const locationSettings = LocationSettings(
+    accuracy: LocationAccuracy.high,
+    distanceFilter: 10,
+  );
+
+  _positionStream =
+      Geolocator.getPositionStream(
+    locationSettings: locationSettings,
+  ).listen((Position position) {
+    if (!mounted) return;
+
+    setState(() {
+      _currentPosition = position;
+    });
+
+    _mapController.move(
+      LatLng(
+        position.latitude,
+        position.longitude,
+      ),
+      16,
+    );
+  });
+}
+  bool _isLoadingLocation = false;
+  final List<LatLng> farmerLocations = [
+  LatLng(10.7905, 78.7047),
+  LatLng(10.8050, 78.6900),
+  LatLng(10.7750, 78.7200),
+];
+
+final List<LatLng> dealerLocations = [
+  LatLng(10.8000, 78.7150),
+  LatLng(10.7800, 78.6950),
+  LatLng(10.8150, 78.6800),
+];
+  final MapController _mapController = MapController();
+  @override
+void initState() {
+  super.initState();
+  _startLiveLocation();
+}
+  Future<void> _getCurrentLocation() async {
+    setState(() {
+      _isLoadingLocation = true;
+    });
+
+    try {
+      bool serviceEnabled =
+          await Geolocator.isLocationServiceEnabled();
+
+      if (!serviceEnabled) {
+        return;
+      }
+
+      LocationPermission permission =
+          await Geolocator.checkPermission();
+
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return;
+      }
+
+      final position =
+          await Geolocator.getCurrentPosition();
+
+      setState(() {
+        _currentPosition = position;
+      });
+      _mapController.move(
+  LatLng(
+    position.latitude,
+    position.longitude,
+  ),
+  15,
+);
+
+      debugPrint(
+        'Latitude: ${position.latitude}, '
+        'Longitude: ${position.longitude}',
+      );
+    } catch (e) {
+      debugPrint('Location error: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingLocation = false;
+        });
+      }
+    }
+  }
+   
 
   @override
   Widget build(BuildContext context) {
@@ -1612,6 +2076,7 @@ class SmartMapPage extends StatelessWidget {
 
           // MAP AREA
          FlutterMap(
+          mapController: _mapController,
   options: const MapOptions(
     initialCenter: LatLng(10.7905, 78.7047),
     initialZoom: 13,
@@ -1623,8 +2088,27 @@ class SmartMapPage extends StatelessWidget {
       userAgentPackageName: 'com.farmlink.app',
       maxZoom: 19,
     ),
+    if (_currentPosition != null)
+  MarkerLayer(
+    markers: [
+      Marker(
+        point: LatLng(
+          _currentPosition!.latitude,
+          _currentPosition!.longitude,
+        ),
+        width: 50,
+        height: 50,
+        child: const Icon(
+          Icons.location_on,
+          size: 45,
+          color: Colors.blue,
+        ),
+      ),
+    ],
+  ),
   ],
 ),
+
 
           // SEARCH BAR
           Positioned(
@@ -1731,7 +2215,10 @@ class SmartMapPage extends StatelessWidget {
             child: FloatingActionButton(
               heroTag: 'locationButton',
               backgroundColor: AppColors.surface,
-              onPressed: () {},
+              onPressed: () {
+  _getCurrentLocation();
+  _startLiveLocation();
+},
               child: const Icon(
                 Icons.my_location_rounded,
                 color: AppColors.blue,
