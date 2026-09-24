@@ -4,8 +4,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
-import farmlink_backend.User;
-
 import java.util.List;
 
 @RestController
@@ -17,31 +15,30 @@ public class AdminController {
     private final OrderRepository orderRepository;
     private final PostRepository postRepository;
 
-    public AdminController(UserRepository userRepository, CropRepository cropRepository, OrderRepository orderRepository, PostRepository postRepository) {
+    public AdminController(
+            UserRepository userRepository,
+            CropRepository cropRepository,
+            OrderRepository orderRepository,
+            PostRepository postRepository) {
+
         this.userRepository = userRepository;
         this.cropRepository = cropRepository;
         this.orderRepository = orderRepository;
         this.postRepository = postRepository;
     }
 
-    // Get all users
     @GetMapping("/users")
-    public ResponseEntity<?> getAllUsers(
-            Authentication authentication) {
-
+    public ResponseEntity<?> getAllUsers(Authentication authentication) {
         User admin = (User) authentication.getPrincipal();
 
         if (!"ADMIN".equalsIgnoreCase(admin.getRole())) {
-            return ResponseEntity.status(403)
-                    .body("Only admins can access this");
+            return ResponseEntity.status(403).body("Only admins can access this");
         }
 
         List<User> users = userRepository.findAll();
-
         return ResponseEntity.ok(users);
     }
 
-    // Delete a user
     @DeleteMapping("/users/{id}")
     public ResponseEntity<?> deleteUser(
             @PathVariable Long id,
@@ -50,12 +47,10 @@ public class AdminController {
         User admin = (User) authentication.getPrincipal();
 
         if (!"ADMIN".equalsIgnoreCase(admin.getRole())) {
-            return ResponseEntity.status(403)
-                    .body("Only admins can delete users");
+            return ResponseEntity.status(403).body("Only admins can delete users");
         }
 
-        User user = userRepository.findById(id)
-                .orElse(null);
+        User user = userRepository.findById(id).orElse(null);
 
         if (user == null) {
             return ResponseEntity.notFound().build();
@@ -68,128 +63,116 @@ public class AdminController {
 
         userRepository.delete(user);
 
+        return ResponseEntity.ok("User deleted successfully");
+    }
+
+    @PatchMapping("/users/{id}/verify")
+    public ResponseEntity<?> verifyUser(
+            @PathVariable Long id,
+            Authentication authentication) {
+
+        User admin = (User) authentication.getPrincipal();
+
+        if (!"ADMIN".equalsIgnoreCase(admin.getRole())) {
+            return ResponseEntity.status(403)
+                    .body("Only admins can verify users");
+        }
+
+        User user = userRepository.findById(id).orElse(null);
+
+        if (user == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        user.setVerified(true);
+        userRepository.save(user);
+
+        return ResponseEntity.ok("User verified successfully");
+    }
+
+    @PatchMapping("/users/{id}/unverify")
+    public ResponseEntity<?> unverifyUser(
+            @PathVariable Long id,
+            Authentication authentication) {
+
+        User admin = (User) authentication.getPrincipal();
+
+        if (!"ADMIN".equalsIgnoreCase(admin.getRole())) {
+            return ResponseEntity.status(403)
+                    .body("Only admins can unverify users");
+        }
+
+        User user = userRepository.findById(id).orElse(null);
+
+        if (user == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        user.setVerified(false);
+        userRepository.save(user);
+
+        return ResponseEntity.ok("User unverified successfully");
+    }
+
+    @GetMapping("/dashboard")
+    public ResponseEntity<?> getDashboardStats(
+            Authentication authentication) {
+
+        User admin = (User) authentication.getPrincipal();
+
+        if (!"ADMIN".equalsIgnoreCase(admin.getRole())) {
+            return ResponseEntity.status(403)
+                    .body("Only admins can access dashboard");
+        }
+
+        long totalUsers = userRepository.count();
+        long totalCrops = cropRepository.count();
+        long totalOrders = orderRepository.count();
+        long totalPosts = postRepository.count();
+
         return ResponseEntity.ok(
-                "User deleted successfully"
+                new DashboardResponse(
+                        totalUsers,
+                        totalCrops,
+                        totalOrders,
+                        totalPosts
+                )
         );
     }
-    public boolean isVerified() {
-    return verified;
-}
 
-public void setVerified(boolean verified) {
-    this.verified = verified;
-}
-// Verify a user
-@PatchMapping("/users/{id}/verify")
-public ResponseEntity<?> verifyUser(
-        @PathVariable Long id,
-        Authentication authentication) {
+    public static class DashboardResponse {
 
-    User admin = (User) authentication.getPrincipal();
+        private long totalUsers;
+        private long totalCrops;
+        private long totalOrders;
+        private long totalPosts;
 
-    if (!"ADMIN".equalsIgnoreCase(admin.getRole())) {
-        return ResponseEntity.status(403)
-                .body("Only admins can verify users");
+        public DashboardResponse(
+                long totalUsers,
+                long totalCrops,
+                long totalOrders,
+                long totalPosts) {
+
+            this.totalUsers = totalUsers;
+            this.totalCrops = totalCrops;
+            this.totalOrders = totalOrders;
+            this.totalPosts = totalPosts;
+        }
+
+        public long getTotalUsers() {
+            return totalUsers;
+        }
+
+        public long getTotalCrops() {
+            return totalCrops;
+        }
+
+        public long getTotalOrders() {
+            return totalOrders;
+        }
+
+        public long getTotalPosts() {
+            return totalPosts;
+        }
     }
-
-    User user = userRepository.findById(id)
-            .orElse(null);
-
-    if (user == null) {
-        return ResponseEntity.notFound().build();
-    }
-
-    user.setVerified(true);
-
-    userRepository.save(user);
-
-    return ResponseEntity.ok(
-            "User verified successfully"
-    );
-}
-// Unverify a user
-@PatchMapping("/users/{id}/unverify")
-public ResponseEntity<?> unverifyUser(
-        @PathVariable Long id,
-        Authentication authentication) {
-
-    User admin = (User) authentication.getPrincipal();
-
-    if (!"ADMIN".equalsIgnoreCase(admin.getRole())) {
-        return ResponseEntity.status(403)
-                .body("Only admins can unverify users");
-    }
-
-    User user = userRepository.findById(id)
-            .orElse(null);
-
-    if (user == null) {
-        return ResponseEntity.notFound().build();
-    }
-
-    user.setVerified(false);
-
-    userRepository.save(user);
-
-    return ResponseEntity.ok(
-            "User unverified successfully"
-    );
-}
-// Admin dashboard statistics
-@GetMapping("/dashboard")
-public ResponseEntity<?> getDashboardStats(
-        Authentication authentication) {
-
-    User admin = (User) authentication.getPrincipal();
-
-    if (!"ADMIN".equalsIgnoreCase(admin.getRole())) {
-        return ResponseEntity.status(403)
-                .body("Only admins can access dashboard");
-    }
-
-    long totalUsers = userRepository.count();
-    long totalCrops = cropRepository.count();
-    long totalOrders = orderRepository.count();
-    long totalPosts = postRepository.count();
-    return ResponseEntity.ok(
-        new DashboardResponse(
-                totalUsers,
-                totalCrops,
-                totalOrders,
-                totalPosts
-        )
-);
-}
-
-public static class DashboardResponse {
-
-    private long totalUsers;
-    private long totalCrops;
-    private long totalOrders;
-    private long totalPosts;
-
-    public DashboardResponse(long totalUsers, long totalCrops, long totalOrders, long totalPosts) {
-        this.totalUsers = totalUsers;
-        this.totalCrops = totalCrops;
-        this.totalOrders = totalOrders;
-        this.totalPosts = totalPosts;
-    }
-
-    public long getTotalUsers() {
-        return totalUsers;
-    }
-
-    public long getTotalCrops() {
-        return totalCrops;
-    }
-
-    public long getTotalOrders() {
-        return totalOrders;
-    }
-
-    public long getTotalPosts() {
-        return totalPosts;
-    }
-
-}
 }
